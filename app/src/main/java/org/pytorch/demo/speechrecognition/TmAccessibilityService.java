@@ -1,32 +1,103 @@
 package org.pytorch.demo.speechrecognition;
+
+import android.accessibilityservice.AccessibilityService;
+import android.content.Context;
+import android.graphics.Rect;
+import android.util.Log;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.media.AudioManager;
+
+import java.util.List;
+
+public class TmAccessibilityService extends AccessibilityService {
+
+    public static TmAccessibilityService mService;
+    //public Context context=getApplicationContext();
+
+
+
+    private final String TAG = getClass().getSimpleName();
+    private final String packageName="com.tencent.wemeet.app:id/";
+
+    //flag used to recognize the view
+    public final String ViewFlag_FastMeeting="使用个人会议号";
+    public static final String vid_Main_JoinMeeting="h0";
+    public static final String vid_Main_FastMeeting="gy";
+    public static final String vid_FastMeeting_Video="i9";
+    public static final String vid_FastMeeting_Beauty="i8";
+    public static final String vid_FastMeeting_BeautySet="jb";
+    public static final String vid_FastMeeting_PersonalMeetingNum="i_";
+    public static final String vid_FastMeeting_StartMeeting="fw";//"a4b";//"fw";
+    public static final String vid_JoinMeeting_cb="ay5";
+    public static final String vid_JoinMeeting_vgBeauty="a2j";
+    public static final String vid_JoinMeeting_vgMicon="b01";
+
+    public static final String vid_InMeeting_Mic="a12";//"fe";//"baf";//"b67";
+
+    private static final int vMAIN=0;
+    private static final int vFASTMEETING=1;
+    private static final int vJOINMEETING=2;
+    private static final int vINMEETING=3;
+    private static final int vOTHERS=4;
+
+    private AudioManager mAudioManager;
+
+    private int nowView=vOTHERS;
+    private boolean find=false;
+
+    AccessibilityNodeInfo nodeInfo;
+    Thread FloatingWindow_thread;
+    @Override
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+        Log.i(TAG, "ACC::onAccessibilityEvent: " + event.getEventType());
+
+        //TYPE_WINDOW_STATE_CHANGED == 32
+        if (AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED == event
+                .getEventType()) {
+            nodeInfo = getRootInActiveWindow();
+            //event.getSource();
+//            List<AccessibilityWindowInfo>windowlist=getWindows();
+//            for (AccessibilityWindowInfo window:windowlist){
+//                AccessibilityNodeInfo node=window.getRoot();
 //
-//import android.accessibilityservice.AccessibilityService;
-//import android.util.Log;
-//import android.view.accessibility.AccessibilityEvent;
-//import android.view.accessibility.AccessibilityNodeInfo;
-//
-//import java.util.List;
-//
-//public class TmAccessibilityService extends AccessibilityService {
-//
-//    public static TmAccessibilityService mService;
-//
-//    private final String TAG = getClass().getSimpleName();
-//    private final String packageName="com.tencent.wemeet.app:id/";
-//
-//    @Override
-//    public void onAccessibilityEvent(AccessibilityEvent event) {
-//        Log.i(TAG, "ACC::onAccessibilityEvent: " + event.getEventType());
-//
-//        //TYPE_WINDOW_STATE_CHANGED == 32
-//        if (AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED == event
-//                .getEventType()) {
-//            AccessibilityNodeInfo nodeInfo = event.getSource();
-//            Log.i(TAG, "ACC::onAccessibilityEvent: nodeInfo=" + nodeInfo);
-//            if (nodeInfo == null) {
-//                return;
 //            }
-//
+            Log.i(TAG, "ACC::onAccessibilityEvent: TYPE_WINDOW_CONTENT_CHANGED nodeInfo=" + nodeInfo);
+            if (nodeInfo == null) {
+                return;
+            }
+            if (!nodeInfo.findAccessibilityNodeInfosByViewId(packageName+vid_FastMeeting_Video).isEmpty()){
+                Log.i(TAG, "ACC::onAccessibilityEvent: Show mFastMeeting...");
+                nowView=vFASTMEETING;
+                find=true;
+                FloatWindow.mService.showFloatWindow(FloatWindow.mService.mFastMeeting,0);
+                //ClickViewbyText("点击设置");
+                //ClickView("fw");
+                //ClickView("jb");
+            }
+            else if (!nodeInfo.findAccessibilityNodeInfosByViewId(packageName+vid_JoinMeeting_cb).isEmpty()){
+                Log.i(TAG, "ACC::onAccessibilityEvent: Show mJoinMeeting...");
+                //getWinToken();
+                FloatWindow.mService.showFloatWindow(FloatWindow.mService.mJoinMeeting,getViewBound(vid_JoinMeeting_vgMicon).top-200);
+                nowView=vJOINMEETING;
+                //FloatWindow.mService.showFloatWindow(FloatWindow.mService.mFastMeeting);
+            }
+            else if (!nodeInfo.findAccessibilityNodeInfosByViewId(packageName+vid_Main_JoinMeeting).isEmpty()){
+                Log.i(TAG, "ACC::onAccessibilityEvent: Main");
+                FloatWindow.mService.removeFloatWindow();
+                nowView=vMAIN;
+            }
+            else if (!nodeInfo.findAccessibilityNodeInfosByViewId(packageName+vid_InMeeting_Mic).isEmpty()){
+                Log.i(TAG, "ACC::onAccessibilityEvent: InMeeting");
+                FloatWindow.mService.removeFloatWindow();
+                nowView=vINMEETING;
+            }
+            else {
+                Log.i(TAG, "ACC::onAccessibilityEvent: Unknown View");
+                nowView=vOTHERS;
+                FloatWindow.mService.removeFloatWindow();
+            }
+
 //            List<AccessibilityNodeInfo> list = nodeInfo
 //                    .findAccessibilityNodeInfosByViewId(packageName+"i9");
 //            for (AccessibilityNodeInfo node : list) {
@@ -40,371 +111,249 @@ package org.pytorch.demo.speechrecognition;
 //                Log.i(TAG, "ACC::onAccessibilityEvent: button1 " + node);
 //                node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
 //            }
-//        }
-//
-//    }
-//
-//
-//    @Override
-//    public void onInterrupt() {
-//        // TODO Auto-generated method stub
-//        Log.i(TAG, "ACC::Accessibility Interrupted");
-//        mService = null;
-//    }
-//
-//    @Override
-//    public void onDestroy() {
-//        super.onDestroy();
-//        Log.i(TAG, "ACC::Accessibility Shutdown");
-//        mService = null;
-//    }
-//
-//    //初始化
-//    @Override
-//    protected void onServiceConnected() {
-//        super.onServiceConnected();
-//        Log.i(TAG, "ACC::onServiceConnected: ");
-//        mService = this;
-//    }
-//
-//
-//    public static boolean isStart() {
-//        return mService != null;
-//    }
-//}
+        }
 
+        else if(AccessibilityEvent.TYPE_VIEW_CLICKED == event
+                .getEventType()){
+            nodeInfo = event.getSource();
 
+//            Log.i(TAG, "ACC::onAccessibilityEvent: TYPE_VIEW_CLICKED nodeInfo=" + nodeInfo);
+            if (nodeInfo == null) {
+                Log.i(TAG,"Warning: NodeInfo Null.");
+                return;
+            }
+            Log.i(TAG,"ViewID:"+nodeInfo.getViewIdResourceName());
+//            List<AccessibilityNodeInfo> list = nodeInfo
+//                    .findAccessibilityNodeInfosByViewId(packageName+vid_Main_FastMeeting);
+//            if(!list.isEmpty()){
+//                Log.i(TAG, "ACC::onAccessibilityEvent: Show mFastMeeting...");
+//                FloatWindow.mService.showFloatWindow(FloatWindow.mService.mFastMeeting);
+//            }
+//            else {
+//                list = nodeInfo
+//                        .findAccessibilityNodeInfosByViewId(packageName+vid_Main_JoinMeeting);
+//                if(!list.isEmpty()){
+//                    Log.i(TAG, "ACC::onAccessibilityEvent: Show mJoinMeeting...");
+//                    FloatWindow.mService.showFloatWindow(FloatWindow.mService.mFastMeeting);
+//                }
+//            }
+        }
 
-import android.accessibilityservice.AccessibilityService;
-import android.accessibilityservice.GestureDescription;
-import android.graphics.Path;
-import android.graphics.Rect;
-import android.util.Log;
-import android.view.KeyEvent;
-import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityNodeInfo;
-
-import java.security.InvalidParameterException;
-import java.util.ArrayList;
-import java.util.List;
-
-public class TmAccessibilityService extends AccessibilityService {
-    private final String TAG = getClass().getName();
-
-    public static TmAccessibilityService mService;
-
-    //初始化
-    @Override
-    protected void onServiceConnected() {
-        super.onServiceConnected();
-        System.out.println("O(∩_∩)O~~\\r\\n红包锁定中...");//可以查看日志
-        //Utils.toast("O(∩_∩)O~~\r\n红包锁定中...");
-        mService = this;
     }
 
-    //实现辅助功能
-    @Override
-    public void onAccessibilityEvent(AccessibilityEvent event) {
-//        AccessibilityNodeInfo biaoQingInfo = findFirst(AbstractTF.newContentDescription("表情", true));
-//        if (biaoQingInfo != null) {
-//            Utils.toast("找到wx的表情图标");//第一次运行可能会吐不出来
-//            Log.e(TAG, "onAccessibilityEvent: 找到wx的表情图标");//可以查看日志
-//            biaoQingInfo.recycle();
-//        }
+    public void ClickViewbyText(String text){
+        List<AccessibilityNodeInfo> list = nodeInfo
+                .findAccessibilityNodeInfosByText(text);
+        for (AccessibilityNodeInfo node : list) {
+            Log.i(TAG, "ACC::onAccessibilityEvent: left_button " + node);
+            //node.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        }
     }
+
+    public void ClickView(String ViewID){
+        if (nodeInfo!=null) {
+            List<AccessibilityNodeInfo> list = nodeInfo
+                    .findAccessibilityNodeInfosByViewId(packageName + ViewID);
+            if(list.isEmpty()){
+                Log.i(TAG,"Warning: Failed to find the view!");
+            }
+            else {
+                for (AccessibilityNodeInfo node : list) {
+                    Log.i(TAG, "ACC::onAccessibilityEvent: Click View " + node);
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                    //System.out.println("info:"+node.getStateDescription());
+                }
+            }
+        }
+        else {
+            Log.i(TAG,"Warning: Try to perform click on null nodeInfo!");
+        }
+    }
+
+    public String GetSwitchState(String ViewID){
+        if (nodeInfo!=null) {
+            List<AccessibilityNodeInfo> list = nodeInfo
+                    .findAccessibilityNodeInfosByViewId(packageName + ViewID);
+            if(list.isEmpty()){
+                Log.i(TAG,"Warning: Failed to find the view!");
+            }
+            else {
+                for (AccessibilityNodeInfo node : list) {
+                    Log.i(TAG, "ACC::onAccessibilityEvent: Click View " + node);
+                    return node.getStateDescription().toString();
+                    //System.out.println("info:"+node.getStateDescription());
+                }
+            }
+        }
+        else {
+            Log.i(TAG,"Warning: Try to perform click on null nodeInfo!");
+        }
+        return null;
+    }
+
+    public int CheckMicOn(){
+        if (nodeInfo!=null) {
+            List<AccessibilityNodeInfo> list = nodeInfo
+                    .findAccessibilityNodeInfosByText("解除静音");
+            if(!list.isEmpty()){
+                return 0;
+            }
+            list = nodeInfo
+                    .findAccessibilityNodeInfosByText("静音");
+            if(!list.isEmpty()){
+                return 1;
+            }
+            Log.i(TAG,"CheckMicOn: Warning: Mic State Wrong!");
+        }
+        else {
+            Log.i(TAG,"CheckMicOn: Warning: Try to refer null nodeInfo!");
+        }
+        return -1;
+
+    }
+
+
+
+    public void ClickViewbyPosition(String ViewID){
+        if (nodeInfo!=null) {
+            List<AccessibilityNodeInfo> list = nodeInfo
+                    .findAccessibilityNodeInfosByViewId(packageName + ViewID);
+            if(list.isEmpty()){
+                Log.i(TAG,"Warning: Failed to find the view!");
+            }
+            else {
+                for (AccessibilityNodeInfo node : list) {
+                    Log.i(TAG, "ACC::onAccessibilityEvent: left_button " + node);
+                    int x=getViewBound(ViewID).top+3;
+                    int y=getViewBound(ViewID).left+3;
+                    //click(x,y);
+                    //node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                }
+            }
+        }
+        else {
+            Log.i(TAG,"Warning: Try to perform click on null nodeInfo!");
+        }
+    }
+
+
+    public Rect getViewBound(String ViewID){
+        Rect rect=new Rect();
+        if (nodeInfo!=null) {
+            List<AccessibilityNodeInfo> list = nodeInfo
+                    .findAccessibilityNodeInfosByViewId(packageName + ViewID);
+            if(list.isEmpty()){
+                Log.i(TAG,"Warning: Failed to find the view!");
+            }
+            else {
+                for (AccessibilityNodeInfo node : list) {
+                    Log.i(TAG, "ACC::onAccessibilityEvent: left_button " + node);
+                    node.getBoundsInScreen(rect);
+                }
+            }
+        }
+        else {
+            Log.i(TAG,"Warning: Try to perform click on null nodeInfo!");
+        }
+        return rect;
+    }
+
+//    private void getWinToken(){
+//        IBinder Token;
+//        if (nodeInfo!=null) {
+//            List<AccessibilityNodeInfo> list = nodeInfo
+//                    .findAccessibilityNodeInfosByViewId(packageName + "jw");
+//            if(list.isEmpty()){
+//                Log.i(TAG,"Warning: Failed to find the view!");
+//            }
+//            else {
+//                for (AccessibilityNodeInfo node : list) {
+//                    Log.i(TAG, "ACC::onAccessibilityEvent: ViewID " + node.getViewIdResourceName());
+//                    ArrayList<View>Viewlist = new ArrayList<View>();
+//                    findViewsWithText(Viewlist,nodeInfo.getContentDescription(), FIND_VIEWS_WITH_CONTENT_DESCRIPTION);
+//
+//
+//                }
+//            }
+//        }
+//        else {
+//            Log.i(TAG,"Warning: Try to perform click on null nodeInfo!");
+//        }
+//    }
+
+    public void SetMicMute(boolean state){
+
+        mAudioManager.setMicrophoneMute(state);
+        Log.i(TAG,"SetMicMute");
+        System.out.println("isMicrophoneMute =" + mAudioManager.isMicrophoneMute());
+    }
+
 
     @Override
     public void onInterrupt() {
-        Utils.toast("(；′⌒`)\r\n红包功能被迫中断");
+        // TODO Auto-generated method stub
+        Log.i(TAG, "ACC::Accessibility Interrupted");
         mService = null;
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Utils.toast("%>_<%\r\n红包功能已关闭");
+        Log.i(TAG, "ACC::Accessibility Shutdown");
         mService = null;
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // 公共方法
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //初始化
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        Log.i(TAG, "ACC::onServiceConnected: ");
+        mService = this;
+        mAudioManager=(AudioManager) mService.getSystemService(Context.AUDIO_SERVICE);
+        //MainActivity.this.InitafterTmConnected();
+    }
 
-    /**
-     * 辅助功能是否启动
-     */
+    public Context getContext(){
+        return getApplicationContext();
+    }
+
+//    public void startFloatingWindow(){
+//                    FloatingWindow_thread=new Thread(FloatingWindow_runnable);
+//                    FloatingWindow_thread.start();
+//    }
+
+//    Runnable FloatingWindow_runnable =new Runnable() {
+//        @Override
+//        public void run(){
+//            Looper.prepare();
+//            initFloatingWindow();
+//            Looper.loop();
+//        }
+//    };
+//
+//    public void initFloatingWindow(){
+//        WindowManager wm = (WindowManager)getSystemService(WINDOW_SERVICE);
+//        FrameLayout mLayout = new FrameLayout(this);
+//        WindowManager.LayoutParams lp = new WindowManager.LayoutParams();
+//        lp.type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY;
+//        lp.format = PixelFormat.TRANSLUCENT;
+//        //lp.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+//        //改成下面这句话就可以弹出输入法了
+//        // lp.flags =WindowManager. LayoutParams.FLAG_NOT_TOUCH_MODAL;
+//        lp.flags |=WindowManager. LayoutParams.FLAG_NOT_TOUCH_MODAL |WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+//        lp.width = WindowManager.LayoutParams.WRAP_CONTENT;
+//        lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
+//        lp.gravity = Gravity.TOP;
+//        LayoutInflater inflater = LayoutInflater.from(this);
+//        inflater.inflate(R.layout.activity_statistic, mLayout);
+//        wm.addView(mLayout, lp);
+//    }
+
+
+
+
     public static boolean isStart() {
         return mService != null;
-    }
-
-    /**
-     * 点击该控件
-     *
-     * @return true表示点击成功
-     */
-    public static boolean clickView(AccessibilityNodeInfo nodeInfo) {
-        if (nodeInfo != null) {
-            if (nodeInfo.isClickable()) {
-                nodeInfo.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                return true;
-            } else {
-                AccessibilityNodeInfo parent = nodeInfo.getParent();
-                if (parent != null) {
-                    boolean b = clickView(parent);
-                    parent.recycle();
-                    if (b) return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 查找第一个匹配的控件
-     *
-     * @param tfs 匹配条件，多个AbstractTF是&&的关系，如：
-     *            AbstractTF.newContentDescription("表情", true),AbstractTF.newClassName(AbstractTF.ST_IMAGEVIEW)
-     *            表示描述内容是'表情'并且是imageview的控件
-     */
-//    @Nullable
-//    public AccessibilityNodeInfo findFirst(@NonNull AbstractTF... tfs) {
-//        if (tfs.length == 0) throw new InvalidParameterException("AbstractTF不允许传空");
-//
-//        AccessibilityNodeInfo rootInfo = getRootInActiveWindow();
-//        if (rootInfo == null) return null;
-//
-//        int idTextTFCount = 0, idTextIndex = 0;
-//        for (int i = 0; i < tfs.length; i++) {
-//            if (tfs[i] instanceof AbstractTF.IdTextTF) {
-//                idTextTFCount++;
-//                idTextIndex = i;
-//            }
-//        }
-//        switch (idTextTFCount) {
-//            case 0://id或text数量为0，直接循环查找
-//                AccessibilityNodeInfo returnInfo = findFirstRecursive(rootInfo, tfs);
-//                rootInfo.recycle();
-//                return returnInfo;
-//            case 1://id或text数量为1，先查出对应的id或text，然后再查其他条件
-//                if (tfs.length == 1) {
-//                    AccessibilityNodeInfo returnInfo2 = ((AbstractTF.IdTextTF) tfs[idTextIndex]).findFirst(rootInfo);
-//                    rootInfo.recycle();
-//                    return returnInfo2;
-//                } else {
-//                    List<AccessibilityNodeInfo> listIdText = ((AbstractTF.IdTextTF) tfs[idTextIndex]).findAll(rootInfo);
-//                    if (Utils.isEmptyArray(listIdText)) {
-//                        break;
-//                    }
-//                    AccessibilityNodeInfo returnInfo3 = null;
-//                    for (AccessibilityNodeInfo info : listIdText) {//遍历找到匹配的
-//                        if (returnInfo3 == null) {
-//                            boolean isOk = true;
-//                            for (AbstractTF tf : tfs) {
-//                                if (!tf.checkOk(info)) {
-//                                    isOk = false;
-//                                    break;
-//                                }
-//                            }
-//                            if (isOk) {
-//                                returnInfo3 = info;
-//                            } else {
-//                                info.recycle();
-//                            }
-//                        } else {
-//                            info.recycle();
-//                        }
-//                    }
-//                    rootInfo.recycle();
-//                    return returnInfo3;
-//                }
-//            default:
-//                throw new RuntimeException("由于时间有限，并且多了也没什么用，所以IdTF和TextTF只能有一个");
-//        }
-//        rootInfo.recycle();
-//        return null;
-//    }
-
-    /**
-     * @param tfs 由于是递归循环，会忽略IdTF和TextTF
-     */
-//    public static AccessibilityNodeInfo findFirstRecursive(AccessibilityNodeInfo parent, @NonNull AbstractTF... tfs) {
-//        if (parent == null) return null;
-//        if (tfs.length == 0) throw new InvalidParameterException("AbstractTF不允许传空");
-//
-//        for (int i = 0; i < parent.getChildCount(); i++) {
-//            AccessibilityNodeInfo child = parent.getChild(i);
-//            if (child == null) continue;
-//            boolean isOk = true;
-//            for (AbstractTF tf : tfs) {
-//                if (!tf.checkOk(child)) {
-//                    isOk = false;
-//                    break;
-//                }
-//            }
-//            if (isOk) {
-//                return child;
-//            } else {
-//                AccessibilityNodeInfo childChild = findFirstRecursive(child, tfs);
-//                child.recycle();
-//                if (childChild != null) {
-//                    return childChild;
-//                }
-//            }
-//        }
-//        return null;
-//    }
-
-    /**
-     * 查找全部匹配的控件
-     *
-     * @param tfs 匹配条件，多个AbstractTF是&&的关系，如：
-     *            AbstractTF.newContentDescription("表情", true),AbstractTF.newClassName(AbstractTF.ST_IMAGEVIEW)
-     *            表示描述内容是'表情'并且是imageview的控件
-     */
-    //@NonNull
-//    public List<AccessibilityNodeInfo> findAll(@NonNull AbstractTF... tfs) {
-//        if (tfs.length == 0) throw new InvalidParameterException("AbstractTF不允许传空");
-//
-//        ArrayList<AccessibilityNodeInfo> list = new ArrayList<>();
-//        AccessibilityNodeInfo rootInfo = getRootInActiveWindow();
-//        if (rootInfo == null) return list;
-//
-//        int idTextTFCount = 0, idTextIndex = 0;
-//        for (int i = 0; i < tfs.length; i++) {
-//            if (tfs[i] instanceof AbstractTF.IdTextTF) {
-//                idTextTFCount++;
-//                idTextIndex = i;
-//            }
-//        }
-//        switch (idTextTFCount) {
-//            case 0://id或text数量为0，直接循环查找
-//                findAllRecursive(list, rootInfo, tfs);
-//                break;
-//            case 1://id或text数量为1，先查出对应的id或text，然后再循环
-//                List<AccessibilityNodeInfo> listIdText = ((AbstractTF.IdTextTF) tfs[idTextIndex]).findAll(rootInfo);
-//                if (Utils.isEmptyArray(listIdText)) {
-//                    break;
-//                }
-//                if (tfs.length == 1) {
-//                    list.addAll(listIdText);
-//                } else {
-//                    for (AccessibilityNodeInfo info : listIdText) {
-//                        boolean isOk = true;
-//                        for (AbstractTF tf : tfs) {
-//                            if (!tf.checkOk(info)) {
-//                                isOk = false;
-//                                break;
-//                            }
-//                        }
-//                        if (isOk) {
-//                            list.add(info);
-//                        } else {
-//                            info.recycle();
-//                        }
-//                    }
-//                }
-//                break;
-//            default:
-//                throw new RuntimeException("由于时间有限，并且多了也没什么用，所以IdTF和TextTF只能有一个");
-//        }
-//        rootInfo.recycle();
-//        return list;
-//    }
-
-    /**
-     * 目前好像只有外部输入设备才会调用（虚拟键盘没用）
-     */
-    @Override
-    protected boolean onKeyEvent(KeyEvent event) {
-        System.out.println("哈哈哈哈" + event);
-        return super.onKeyEvent(event);
-    }
-
-    /**
-     * @param tfs 由于是递归循环，会忽略IdTF和TextTF
-     */
-    public static void findAllRecursive(List<AccessibilityNodeInfo> list, AccessibilityNodeInfo parent, int tfs) {
-        if (parent == null || list == null) return;
-        if (tfs == 0) throw new InvalidParameterException("AbstractTF不允许传空");
-
-        for (int i = 0; i < parent.getChildCount(); i++) {
-            AccessibilityNodeInfo child = parent.getChild(i);
-            if (child == null) continue;
-            boolean isOk = true;
-//            for (AbstractTF tf : tfs) {
-//                if (!tf.checkOk(child)) {
-//                    isOk = false;
-//                    break;
-//                }
-//            }
-            if (isOk) {
-                list.add(child);
-            } else {
-                findAllRecursive(list, child, tfs);
-                child.recycle();
-            }
-        }
-    }
-
-    /**
-     * 立即发送移动的手势
-     * 注意7.0以上的手机才有此方法，请确保运行在7.0手机上
-     *
-     * @param path  移动路径
-     * @param mills 持续总时间
-     */
-//    @RequiresApi(24)
-//    public void dispatchGestureMove(Path path, long mills) {
-//        dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription
-//                (path, 0, mills)).build(), null, null);
-//    }
-//
-//    /**
-//     * 点击指定位置
-//     * 注意7.0以上的手机才有此方法，请确保运行在7.0手机上
-//     */
-//    @RequiresApi(24)
-//    public void dispatchGestureClick(int x, int y) {
-//        Path path = new Path();
-//        path.moveTo(x - 1, y - 1);
-//        path.lineTo(x + 1, y + 1);
-//        dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription
-//                (path, 0, 100)).build(), null, null);
-//    }
-//
-//    /**
-//     * 有些应用和谐了{@link #clickView}方法
-//     */
-//    @RequiresApi(24)
-//    public void dispatchGestureClick(AccessibilityNodeInfo info) {
-//        Rect rect = AbstractTF.mRecycleRect;
-//        info.getBoundsInScreen(rect);
-//        dispatchGestureClick(rect.centerX(), rect.centerY());
-//    }
-//
-//    /**
-//     * 长按指定位置
-//     * 注意7.0以上的手机才有此方法，请确保运行在7.0手机上
-//     */
-//    @RequiresApi(24)
-//    public void dispatchGestureLongClick(int x, int y) {
-//        Path path = new Path();
-//        path.moveTo(x - 1, y - 1);
-//        path.lineTo(x, y - 1);
-//        path.lineTo(x, y);
-//        path.lineTo(x - 1, y);
-//        dispatchGesture(new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription
-//                (path, 0, 1000)).build(), null, null);
-//    }
-
-    /**
-     * 由于太多,最好回收这些AccessibilityNodeInfo
-     */
-    public static void recycleAccessibilityNodeInfo(List<AccessibilityNodeInfo> listInfo) {
-        if (Utils.isEmptyArray(listInfo)) return;
-
-        for (AccessibilityNodeInfo info : listInfo) {
-            info.recycle();
-        }
     }
 }

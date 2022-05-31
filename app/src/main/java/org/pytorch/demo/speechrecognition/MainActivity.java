@@ -7,7 +7,9 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -25,6 +27,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -34,10 +37,14 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
@@ -85,7 +92,7 @@ import org.tensorflow.lite.support.common.FileUtil;
 
 
 
-public class MainActivity extends AppCompatActivity {//implements Runnable {
+public class MainActivity extends AppCompatActivity implements Runnable {
     private static final String TAG = MainActivity.class.getName();
 
     private Module mModuleEncoder;
@@ -125,7 +132,7 @@ public class MainActivity extends AppCompatActivity {//implements Runnable {
 
     private SensorManager sm;
     private Sensor mSensorOrientation;
-    //private SensListener sensListener=new SensListener();
+    private SensListener sensListener=new SensListener();
 
     private Vibrator vibrator;
     private SensorManager sensorManager;
@@ -161,6 +168,15 @@ public class MainActivity extends AppCompatActivity {//implements Runnable {
     private Handler TimerHandler;
     private int Timer_time=0;
 
+    Thread SensorService_thread;
+    Thread FloatingWindow_thread;
+
+    //AudioManager audiomanage = (AudioManager)getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
+
+    Handler FloatingWindow_handler=new Handler(Looper.getMainLooper());
+
+
+
     //private TMAccessibilityService TMcontrol=new TMAccessibilityService();
 
 
@@ -177,6 +193,28 @@ public class MainActivity extends AppCompatActivity {//implements Runnable {
                     });
         }
     };
+
+    private Runnable SensorService_runnable =new Runnable() {
+        @Override
+        public void run() {
+            initSensor();
+        }
+    };
+
+    Runnable FloatingWindow_runnable =new Runnable() {
+        @Override
+        public void run(){
+            //TmAccessibilityService.initFloatingWindow();
+            try {
+                startService(new Intent(MainActivity.this, FloatWindow.class));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+
+        }
+    };
+
 
 
 
@@ -242,824 +280,898 @@ public class MainActivity extends AppCompatActivity {//implements Runnable {
 
             }
         });
-//        requestMicrophonePermission();
-//        requestStoragePermission();
+        //requestMicrophonePermission();
 
-//        initSoudpool();
-//        initSensor();
-//        initSpeechDetector();
+        //initSensor();
+        //initSpeechDetector();
         Log.i(TAG, "Main::oncreate done ");
+
+        Utils.writeTxtToFile("Main::oncreate done ","/logs","log.txt");
+
         //initAccessibility(this.getApplicationContext(),"TMAccessibilityService");
     }
-    private int ok=0;
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (!TmAccessibilityService.isStart()&&ok==0) {
+        Utils.writeTxtToFile("onResume ","/logs","log.txt");
+        if (!TmAccessibilityService.isStart()) {
             try {
                 this.startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
             } catch (Exception e) {
                 this.startActivity(new Intent(Settings.ACTION_SETTINGS));
                 e.printStackTrace();
             }
-            ok+=1;
+        }
+        else {
+            InitafterTmConnected();
+        }
+    }
+    public void InitafterTmConnected(){
+        if(SensorService_thread==null) {
+            requestStoragePermission();
+            initSoudpool();
+            SensorService_thread = new Thread(SensorService_runnable);
+            SensorService_thread.start();
+        }
+        if(FloatingWindow_thread==null){
+            if(Settings.canDrawOverlays(this)){
+                Log.i(TAG,"start floating window...");
+                FloatingWindow_thread=new Thread(FloatingWindow_runnable);
+                FloatingWindow_thread.start();
+                //System.out.println(FloatWindow.isStart());
+                startApp("com.tencent.wemeet.app");
+
+                Utils.writeTxtToFile("com.tencent.wemeet.app1","/logs","log.txt");
+
+
+//                    TmAccessibilityService.mService.startFloatingWindow();
+            }
+            else {
+                requestFloatingWindow();
+            }
         }
     }
 
-//    private void initSoudpool(){
-//        soundPool= new SoundPool.Builder()
-//                .setMaxStreams(10)
-//                .build();
-//        soundPool.load(this,R.raw.sound_micon,1);
-//        soundPool.load(this,R.raw.sound_micoff,2);
-//    }
-//
-//    private void initSensor(){
-//        //倒置控制
-//        sm = (SensorManager) getSystemService(SENSOR_SERVICE);
-//        // 获取方向传感器
-//        mSensorOrientation = sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
-//        //注册数值变化监听器
-//        sm.registerListener(sensListener, mSensorOrientation,SensorManager.SENSOR_DELAY_UI);
-//
-//        //PatPat控制
-//        vibrator = (Vibrator)getSystemService(Context.VIBRATOR_SERVICE);
-//        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-//        Sensor gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-//        sensorManager.registerListener(gyroListener, gyroSensor, samplingPeriod);
-//        Sensor linearAccSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
-//        sensorManager.registerListener(linearAccListener, linearAccSensor, samplingPeriod);
-//
-//        tfliteOptions.setNumThreads(4);
-//        try {
-//            firstModel = FileUtil.loadMappedFile(getApplicationContext(), String.format("first.tflite"));
-//            //firstModel = FileUtil.loadMappedFile(assetFilePath(getApplicationContext(), "Model2.ptl"));
-//            firstInterpreter = new Interpreter(firstModel, tfliteOptions);
-//        } catch (IOException e) {
-//            Log.e("Load Model", "model load fail");
-//            e.printStackTrace();
-//            System.out.println("first model load fail");
-//        }
-//        try {
-//            secondModel = FileUtil.loadMappedFile(getApplicationContext(), String.format("second.tflite"));
-//            secondInterpreter = new Interpreter(secondModel, tfliteOptions);
-//        } catch (IOException e) {
-//            Log.e("Load Model", "model load fail");
-//            e.printStackTrace();
-//            System.out.println("second model load fail");
-//        }
-//    }
-//
-//    private class SensListener extends AppCompatActivity implements SensorEventListener {
-//        private float Mx,My,Mz;
-//
-//        // 传感器数值变化会调用此方法
+    @SuppressLint("WrongConstant")
+    private void startApp(String packname){
+        PackageManager packageManager = getPackageManager();
+        if (checkPackInfo(packname)) {
+            Intent intent = packageManager.getLaunchIntentForPackage(packname);
+            startActivity(intent);
+        } else {
+            Toast.makeText(MainActivity.this, "没有安装" + packname, 1).show();
+        }
+    }
+    private boolean checkPackInfo(String packname) {
+        PackageInfo packageInfo = null;
+        try {
+            packageInfo = getPackageManager().getPackageInfo(packname, 0);
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+        return packageInfo != null;
+    }
+
+
+    private void requestFloatingWindow(){
+        Toast.makeText(this, "Please permit float window...", Toast.LENGTH_SHORT);
+        Intent intent = new Intent();
+        intent.setAction(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        startActivityForResult(intent, 0);
+    }
+
+
+    private void initSoudpool(){
+        soundPool= new SoundPool.Builder()
+                .setMaxStreams(10)
+                .build();
+        soundPool.load(this,R.raw.sound_micon,1);
+        soundPool.load(this,R.raw.sound_micoff,2);
+    }
+
+    public void initSensor(){
+        //倒置控制
+        sm = (SensorManager) getSystemService(SENSOR_SERVICE);
+        // 获取方向传感器
+        mSensorOrientation = sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+        //注册数值变化监听器
+        sm.registerListener(sensListener, mSensorOrientation,SensorManager.SENSOR_DELAY_UI);
+
+        //PatPat控制
+        vibrator = (Vibrator)getSystemService(Context.VIBRATOR_SERVICE);
+        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        Sensor gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+        sensorManager.registerListener(gyroListener, gyroSensor, samplingPeriod);
+        Sensor linearAccSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+        sensorManager.registerListener(linearAccListener, linearAccSensor, samplingPeriod);
+
+        tfliteOptions.setNumThreads(4);
+        try {
+            firstModel = FileUtil.loadMappedFile(getApplicationContext(), String.format("first.tflite"));
+            //firstModel = FileUtil.loadMappedFile(assetFilePath(getApplicationContext(), "Model2.ptl"));
+            firstInterpreter = new Interpreter(firstModel, tfliteOptions);
+        } catch (IOException e) {
+            Log.e("Load Model", "model load fail");
+            e.printStackTrace();
+            System.out.println("first model load fail");
+        }
+        try {
+            secondModel = FileUtil.loadMappedFile(getApplicationContext(), String.format("second.tflite"));
+            secondInterpreter = new Interpreter(secondModel, tfliteOptions);
+        } catch (IOException e) {
+            Log.e("Load Model", "model load fail");
+            e.printStackTrace();
+            System.out.println("second model load fail");
+        }
+    }
+
+    private class SensListener extends AppCompatActivity implements SensorEventListener {
+        private float Mx,My,Mz;
+
+        // 传感器数值变化会调用此方法
+
+        @Override
+        public void onSensorChanged( SensorEvent event) {
+            Mx=(float) (Math.round(event.values[0] * 100)) / 100;
+            My=(float) (Math.round(event.values[1] * 100)) / 100;//手机纵向地磁加速度
+            Mz=(float) (Math.round(event.values[2] * 100)) / 100;
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    mtvTest.setText(String.valueOf(Mx)+"\n"+String.valueOf(My)+"\n"+String.valueOf(Mz));
+                }
+
+            });
+            if(MicInstantMode==GreatMeeting_Mode){
+                CheckGesture();
+            }
+
+        }
+
+        private void CheckGesture(){
+            if (MicState==MIC_OFF && My>40 && Math.abs(My)>(Math.abs(Mx+Mz)*2)){
+                MicState=MIC_ON;
+                changeMicState();
+                soundPool.play(1,1, 1, 0, 0, 1);
+            }
+            else if(MicState==MIC_ON && My<-40 && Math.abs(My)>(Math.abs(Mx+Mz)*2)){
+                MicState=MIC_OFF;
+                changeMicState();
+                soundPool.play(2,1, 1, 0, 0, 1);
+            }
+
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        }
+
+    }
+
+    private void changeMicState(){
+        int res;
+        String MicHint="";
+        startTimer();
+
+        if (MicState==MIC_ON) {
+            res = R.drawable.mic_on;
+            if (TmAccessibilityService.mService.CheckMicOn()==0) {
+                TmAccessibilityService.mService.ClickView(TmAccessibilityService.mService.vid_InMeeting_Mic);
+            }
+            TmAccessibilityService.mService.SetMicMute(false);
+            MicHint="Microphone ON!";
+        }
+        else if(EmoState==MIC_OFF){
+            res=R.drawable.mic_off;
+            if (TmAccessibilityService.mService.CheckMicOn()==1) {
+                TmAccessibilityService.mService.ClickView(TmAccessibilityService.mService.vid_InMeeting_Mic);
+                //audiomanage.setMicrophoneMute(true);
+            }
+            MicHint="Microphone OFF!";
+        }
+        else {
+            res=R.drawable.mic_off;
+            if (TmAccessibilityService.mService.CheckMicOn()==1) {
+                TmAccessibilityService.mService.ClickView(TmAccessibilityService.mService.vid_InMeeting_Mic);
+            }
+            TmAccessibilityService.mService.SetMicMute(true);
+            MicHint="Microphone OFF!";
+        }
+        mImgvEmoState.setImageResource(res);
+        mtvEmoState.setText(MicHint);
+    }
+
+
+    private void initSpeechDetector(){
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+
+        speechRecognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+        speechRecognizer.setRecognitionListener(new RecognitionListener() {
+            @Override
+            public void onReadyForSpeech(Bundle bundle) {
+            }
+            @Override
+            public void onBeginningOfSpeech() {
+                System.out.println("start detecting...");
+            }
+            @Override
+            public void onRmsChanged(float v) {
+            }
+            @Override
+            public void onBufferReceived(byte[] bytes) {
+            }
+
+            @Override
+            public void onEndOfSpeech() {
+            }
+            @Override
+            public void onError(int i) {
+            }
+
+            @Override
+            public void onResults(Bundle bundle) {
+                ArrayList<String> data = bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                System.out.println(data.get(0));
+            }
+
+            @Override
+            public void onPartialResults(Bundle bundle) {
+            }
+
+            @Override
+            public void onEvent(int i, Bundle bundle) {
+            }
+        });
+    }
+    private void SpeechDetect(){
+
+        speechRecognizer.startListening(speechRecognizerIntent);
+
+    }
+
+    private Runnable TimerRunnable = new Runnable() {
+        @Override
+        public void run() {
+            TimerHandler.postDelayed(TimerRunnable, 1000);
+            Timer_time+=1;
+            if(Timer_time>5){
+                stopTimer();
+                Log.i(TAG,"Timer:"+Timer_time);
+                //speechRecognizer.stopListening();
+            }
+        }
+    };
+    protected void stopTimer() {
+        TimerThread.quitSafely();
+        try {
+            TimerThread.join();
+            TimerThread = null;
+            TimerHandler = null;
+            Timer_time = 0;
+        } catch (InterruptedException e) {
+            Log.e(TAG, "Error on stopping background thread", e);
+        }
+    }
+    private void startTimer(){
+        Thread thread = new Thread(MainActivity.this);
+        thread.start();
+
+        TimerThread = new HandlerThread("ClockTimer");
+        TimerThread.start();
+        TimerHandler = new Handler(TimerThread.getLooper());
+        TimerHandler.postDelayed(TimerRunnable, 1000);
+    }
+
+    private void initAccessibility(Context ct, String serviceClass){
+        boolean haspermisssion=false;
+        int ok = 0;
+        try {
+            ok = Settings.Secure.getInt(ct.getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED);
+        } catch (Settings.SettingNotFoundException e) {
+        }
+
+        TextUtils.SimpleStringSplitter ms = new TextUtils.SimpleStringSplitter(':');
+        if (ok == 1) {
+            String settingValue = Settings.Secure.getString(ct.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            if (settingValue != null) {
+                ms.setString(settingValue);
+                while (ms.hasNext()) {
+                    String accessibilityService = ms.next();
+                    if (accessibilityService.contains(serviceClass)) {
+                        haspermisssion=true;
+                    }
+                }
+            }
+        }
+
+        if (!haspermisssion){
+            // jump to setting permission
+            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ct.startActivity(intent);
+        }
+    }
+
+    //control tencent meeting
+//    public static class TMAccessibilityService extends AccessibilityService{
+//        private final String TAG = MainActivity.class
+//                .getSimpleName();
+//        private final String packageName="com.tencent.wemeet.app:id/";
 //
 //        @Override
-//        public void onSensorChanged( SensorEvent event) {
-//            Mx=(float) (Math.round(event.values[0] * 100)) / 100;
-//            My=(float) (Math.round(event.values[1] * 100)) / 100;//手机纵向地磁加速度
-//            Mz=(float) (Math.round(event.values[2] * 100)) / 100;
+//        public void onAccessibilityEvent(AccessibilityEvent event) {
+//            Log.i(TAG, "ACC::onAccessibilityEvent: " + event.getEventType());
 //
-//            runOnUiThread(new Runnable() {
-//                @Override
-//                public void run() {
-//                    mtvTest.setText(String.valueOf(Mx)+"\n"+String.valueOf(My)+"\n"+String.valueOf(Mz));
+//            //TYPE_WINDOW_STATE_CHANGED == 32
+//            if (AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED == event
+//                    .getEventType()) {
+//                AccessibilityNodeInfo nodeInfo = event.getSource();
+//                Log.i(TAG, "ACC::onAccessibilityEvent: nodeInfo=" + nodeInfo);
+//                if (nodeInfo == null) {
+//                    return;
 //                }
 //
-//            });
-//            if(MicInstantMode==GreatMeeting_Mode){
-//                CheckGesture();
-//            }
+//                List<AccessibilityNodeInfo> list = nodeInfo
+//                        .findAccessibilityNodeInfosByViewId(packageName+"i9");
+//                for (AccessibilityNodeInfo node : list) {
+//                    Log.i(TAG, "ACC::onAccessibilityEvent: left_button " + node);
+//                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+//                }
 //
-//        }
-//
-//        private void CheckGesture(){
-//            if (MicState==MIC_OFF && My>40 && Math.abs(My)>(Math.abs(Mx+Mz)*2)){
-//                MicState=MIC_ON;
-//                changeMicState();
-//                soundPool.play(1,1, 1, 0, 0, 1);
-//            }
-//            else if(MicState==MIC_ON && My<-40 && Math.abs(My)>(Math.abs(Mx+Mz)*2)){
-//                MicState=MIC_OFF;
-//                changeMicState();
-//                soundPool.play(2,1, 1, 0, 0, 1);
-//            }
-//
-//        }
-//
-//        @Override
-//        public void onAccuracyChanged(Sensor sensor, int accuracy) {
-//        }
-//
-//    }
-//
-//    private void changeMicState(){
-//        int res;
-//        String MicHint="";
-//        if (MicState==MIC_ON) {
-//            res = R.drawable.mic_on;
-//            MicHint="Microphone ON!";
-//        }
-//        else if(EmoState==MIC_OFF){
-//            res=R.drawable.mic_off;
-//            MicHint="Microphone OFF!";
-//        }
-//        else {
-//            res=R.drawable.mic_off;
-//            MicHint="Microphone OFF!";
-//        }
-//        mImgvEmoState.setImageResource(res);
-//        mtvEmoState.setText(MicHint);
-//
-//    }
-//
-//
-//    private void initSpeechDetector(){
-//        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
-//
-//        speechRecognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-//        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-//        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
-//        speechRecognizer.setRecognitionListener(new RecognitionListener() {
-//            @Override
-//            public void onReadyForSpeech(Bundle bundle) {
-//            }
-//            @Override
-//            public void onBeginningOfSpeech() {
-//                System.out.println("start detecting...");
-//            }
-//            @Override
-//            public void onRmsChanged(float v) {
-//            }
-//            @Override
-//            public void onBufferReceived(byte[] bytes) {
-//            }
-//
-//            @Override
-//            public void onEndOfSpeech() {
-//            }
-//            @Override
-//            public void onError(int i) {
-//            }
-//
-//            @Override
-//            public void onResults(Bundle bundle) {
-//                ArrayList<String> data = bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-//                System.out.println(data.get(0));
-//            }
-//
-//            @Override
-//            public void onPartialResults(Bundle bundle) {
-//            }
-//
-//            @Override
-//            public void onEvent(int i, Bundle bundle) {
-//            }
-//        });
-//    }
-//    private void SpeechDetect(){
-//
-//        speechRecognizer.startListening(speechRecognizerIntent);
-//
-//    }
-//
-//    private Runnable TimerRunnable = new Runnable() {
-//        @Override
-//        public void run() {
-//            TimerHandler.postDelayed(TimerRunnable, 1000);
-//            Timer_time+=1;
-//            if(Timer_time>5){
-//                stopTimer();
-//                speechRecognizer.stopListening();
-//            }
-//        }
-//    };
-//    protected void stopTimer() {
-//        TimerThread.quitSafely();
-//        try {
-//            TimerThread.join();
-//            TimerThread = null;
-//            TimerHandler = null;
-//            Timer_time = 0;
-//        } catch (InterruptedException e) {
-//            Log.e(TAG, "Error on stopping background thread", e);
-//        }
-//    }
-//    private void startTimer(){
-//        Thread thread = new Thread(MainActivity.this);
-//        thread.start();
-//
-//        TimerThread = new HandlerThread("ClockTimer");
-//        TimerThread.start();
-//        TimerHandler = new Handler(TimerThread.getLooper());
-//        TimerHandler.postDelayed(TimerRunnable, 1000);
-//    }
-//
-//    private void initAccessibility(Context ct, String serviceClass){
-//        boolean haspermisssion=false;
-//        int ok = 0;
-//        try {
-//            ok = Settings.Secure.getInt(ct.getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED);
-//        } catch (Settings.SettingNotFoundException e) {
-//        }
-//
-//        TextUtils.SimpleStringSplitter ms = new TextUtils.SimpleStringSplitter(':');
-//        if (ok == 1) {
-//            String settingValue = Settings.Secure.getString(ct.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-//            if (settingValue != null) {
-//                ms.setString(settingValue);
-//                while (ms.hasNext()) {
-//                    String accessibilityService = ms.next();
-//                    if (accessibilityService.contains(serviceClass)) {
-//                        haspermisssion=true;
-//                    }
+//                list = nodeInfo
+//                        .findAccessibilityNodeInfosByViewId("android:id/button1");
+//                for (AccessibilityNodeInfo node : list) {
+//                    Log.i(TAG, "ACC::onAccessibilityEvent: button1 " + node);
+//                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
 //                }
 //            }
+//
 //        }
 //
-//        if (!haspermisssion){
-//            // jump to setting permission
-//            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-//            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-//            ct.startActivity(intent);
-//        }
-//    }
-//
-//    //control tencent meeting
-////    public static class TMAccessibilityService extends AccessibilityService{
-////        private final String TAG = MainActivity.class
-////                .getSimpleName();
-////        private final String packageName="com.tencent.wemeet.app:id/";
-////
-////        @Override
-////        public void onAccessibilityEvent(AccessibilityEvent event) {
-////            Log.i(TAG, "ACC::onAccessibilityEvent: " + event.getEventType());
-////
-////            //TYPE_WINDOW_STATE_CHANGED == 32
-////            if (AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED == event
-////                    .getEventType()) {
-////                AccessibilityNodeInfo nodeInfo = event.getSource();
-////                Log.i(TAG, "ACC::onAccessibilityEvent: nodeInfo=" + nodeInfo);
-////                if (nodeInfo == null) {
-////                    return;
-////                }
-////
-////                List<AccessibilityNodeInfo> list = nodeInfo
-////                        .findAccessibilityNodeInfosByViewId(packageName+"i9");
-////                for (AccessibilityNodeInfo node : list) {
-////                    Log.i(TAG, "ACC::onAccessibilityEvent: left_button " + node);
-////                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-////                }
-////
-////                list = nodeInfo
-////                        .findAccessibilityNodeInfosByViewId("android:id/button1");
-////                for (AccessibilityNodeInfo node : list) {
-////                    Log.i(TAG, "ACC::onAccessibilityEvent: button1 " + node);
-////                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-////                }
-////            }
-////
-////        }
-////
-////        @Override
-////        public void onServiceConnected() {
-////            Log.i(TAG, "ACC::onServiceConnected: ");
-////        }
-////        @Override
-////        public void onInterrupt() {
-////            // TODO Auto-generated method stub
-////        }
-////    };
-//
-//
-//    private SensorEventListener gyroListener = new SensorEventListener() {
 //        @Override
-//        public void onSensorChanged(SensorEvent event) {
-//            if (MicInstantMode==HandFree_mode){
-//                addSensorData(0, event.values[0], event.values[1], event.values[2], event.timestamp);
-//            }
+//        public void onServiceConnected() {
+//            Log.i(TAG, "ACC::onServiceConnected: ");
 //        }
 //        @Override
-//        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+//        public void onInterrupt() {
+//            // TODO Auto-generated method stub
 //        }
 //    };
-//
-//    private SensorEventListener linearAccListener = new SensorEventListener() {
-//        @Override
-//        public void onSensorChanged(SensorEvent event) {
-//            if (MicInstantMode==HandFree_mode) {
-//                addSensorData(1, event.values[0], event.values[1], event.values[2], event.timestamp);
-//            }
-//        }
-//
-//        @Override
-//        public void onAccuracyChanged(Sensor sensor, int accuracy) {
-//
-//        }
-//    };
-//
-//    public void addSensorData(int idx, float x, float y, float z, long timestamp) {
-//        if (timestamp < lastTime[idx] + 3 * 1e6)
-//            return;
-//        lastTime[idx] = timestamp;
-//        for (int i = 0; i < seqLength - 1; i++)
-//            System.arraycopy(input[0][i + 1], 3 * idx, input[0][i], 3 * idx, 3);
-//        input[0][seqLength - 1][3 * idx] = x;
-//        input[0][seqLength - 1][3 * idx + 1] = y;
-//        input[0][seqLength - 1][3 * idx + 2] = z;
-//        if (idx == 1) {
-//            if (skipNum > 0)
-//                skipNum--;
-//                // 进行识别
-//            else {
-//                recognizeFirst();
-//                recognizeSecond();
-//            }
-//        }
-//
-//    }
-//
-//    private void recognizeFirst() {
-//        int offset = 5;
-//        float value = input[0][seqLength - offset][5];
-//        if (value < 0.5)
-//            return;
-//        for (int i = 1; i <= 10; i++)
-//            if (value < input[0][seqLength - offset - i][5])
-//                return;
-//        for (int i = 1; i < offset; i++)
-//            if (value < input[0][seqLength - offset + i][5])
-//                return;
-//        float[][][] firstInput = new float[1][10][6];
-//        float[][] firstOutput = new float[1][2];
-//        for (int i = -5; i < 5; i++)
-//            System.arraycopy(input[0][seqLength - offset + i], 0, firstInput[0][5 + i], 0, 6);
-//        firstInterpreter.run(firstInput, firstOutput);
-//        if (firstOutput[0][1] < 0.99)
-//            return;
-//        if (!secondFlag) {
-//            secondFlag = true;
-//            skipNum = 8;
-//        }
-//        firstTapTime = lastTime[1];
-//    }
-//
-//    private void recognizeSecond() {
-//        if (!secondFlag || skipNum > 0)
-//            return;
-//        if (lastTime[1] - firstTapTime > 600 * 1e6) {
-//            secondFlag = false;
-//            Log.e("Recognize", "!!!-1!!!");
-//            return;
-//        }
-//        secondInterpreter.run(input, output);
-//        if (output[0][1] > output[0][0] && output[0][1] > output[0][2]) {
-//            //Toast.makeText(this, "TapTap", Toast.LENGTH_SHORT).show();
-//            //mtvTest.setText(TestText);
-//            MicState=MIC_ON;
-//            changeMicState();
-//            soundPool.play(1,1, 1, 0, 0, 1);
-//            //startTimer();
-//            Log.e("Recognize", "!!!TapTap!!!");
-//        }
-//        else
-//            return;
-//        secondFlag = false;
-//        skipNum = 30;
-//        for (int i = 0; i < seqLength; i++)
-//            for (int j = 0; j < 6; j++)
-//                input[0][i][j] = 0;
-//        vibrator.vibrate(VibrationEffect.createOneShot(300, VibrationEffect.DEFAULT_AMPLITUDE));
-//    }
-//
-//    @Override
-//    protected void onDestroy() {
-//        stopTimerThread();
-//        if (sensorManager != null) {
-//            sensorManager.unregisterListener(gyroListener);
-//            sensorManager.unregisterListener(linearAccListener);
-//        }
-//
-//        if (firstInterpreter != null) {
-//            firstInterpreter.close();
-//            firstInterpreter = null;
-//        }
-//        firstModel = null;
-//
-//        if (secondInterpreter != null) {
-//            secondInterpreter.close();
-//            secondInterpreter = null;
-//        }
-//        secondModel = null;
-//
-//        if (vibrator != null)
-//            vibrator.cancel();
-//        super.onDestroy();
-//    }
-//
-//
-//    //权限申请
-//    private void requestMicrophonePermission() {
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-//            requestPermissions(
-//                    new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_RECORD_AUDIO);
-//        }
-//    }
-//
-//    private void requestStoragePermission() {
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-//            requestPermissions(
-//                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQUEST_EXTERNAL_STORAGE);
+
+
+    private SensorEventListener gyroListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            if (MicInstantMode==HandFree_mode){
+                addSensorData(0, event.values[0], event.values[1], event.values[2], event.timestamp);
+            }
+        }
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        }
+    };
+
+    private SensorEventListener linearAccListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            if (MicInstantMode==HandFree_mode) {
+                addSensorData(1, event.values[0], event.values[1], event.values[2], event.timestamp);
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+        }
+    };
+
+    public void addSensorData(int idx, float x, float y, float z, long timestamp) {
+        if (timestamp < lastTime[idx] + 3 * 1e6)
+            return;
+        lastTime[idx] = timestamp;
+        for (int i = 0; i < seqLength - 1; i++)
+            System.arraycopy(input[0][i + 1], 3 * idx, input[0][i], 3 * idx, 3);
+        input[0][seqLength - 1][3 * idx] = x;
+        input[0][seqLength - 1][3 * idx + 1] = y;
+        input[0][seqLength - 1][3 * idx + 2] = z;
+        if (idx == 1) {
+            if (skipNum > 0)
+                skipNum--;
+                // 进行识别
+            else {
+                recognizeFirst();
+                recognizeSecond();
+            }
+        }
+
+    }
+
+    private void recognizeFirst() {
+        int offset = 5;
+        float value = input[0][seqLength - offset][5];
+        if (value < 0.5)
+            return;
+        for (int i = 1; i <= 10; i++)
+            if (value < input[0][seqLength - offset - i][5])
+                return;
+        for (int i = 1; i < offset; i++)
+            if (value < input[0][seqLength - offset + i][5])
+                return;
+        float[][][] firstInput = new float[1][10][6];
+        float[][] firstOutput = new float[1][2];
+        for (int i = -5; i < 5; i++)
+            System.arraycopy(input[0][seqLength - offset + i], 0, firstInput[0][5 + i], 0, 6);
+        firstInterpreter.run(firstInput, firstOutput);
+        if (firstOutput[0][1] < 0.99)
+            return;
+        if (!secondFlag) {
+            secondFlag = true;
+            skipNum = 8;
+        }
+        firstTapTime = lastTime[1];
+    }
+
+    private void recognizeSecond() {
+        if (!secondFlag || skipNum > 0)
+            return;
+        if (lastTime[1] - firstTapTime > 600 * 1e6) {
+            secondFlag = false;
+            Log.e("Recognize", "!!!-1!!!");
+            return;
+        }
+        secondInterpreter.run(input, output);
+        if (output[0][1] > output[0][0] && output[0][1] > output[0][2]) {
+            //Toast.makeText(this, "TapTap", Toast.LENGTH_SHORT).show();
+            //mtvTest.setText(TestText);
+            MicState=MIC_ON;
+            changeMicState();
+            soundPool.play(1,1, 1, 0, 0, 1);
+            //startTimer();
+            Log.e("Recognize", "!!!TapTap!!!");
+        }
+        else
+            return;
+        secondFlag = false;
+        skipNum = 30;
+        for (int i = 0; i < seqLength; i++)
+            for (int j = 0; j < 6; j++)
+                input[0][i][j] = 0;
+        vibrator.vibrate(VibrationEffect.createOneShot(300, VibrationEffect.DEFAULT_AMPLITUDE));
+    }
+
+    @Override
+    protected void onDestroy() {
+        stopTimerThread();
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(gyroListener);
+            sensorManager.unregisterListener(linearAccListener);
+        }
+
+        if (firstInterpreter != null) {
+            firstInterpreter.close();
+            firstInterpreter = null;
+        }
+        firstModel = null;
+
+        if (secondInterpreter != null) {
+            secondInterpreter.close();
+            secondInterpreter = null;
+        }
+        secondModel = null;
+
+        if (vibrator != null)
+            vibrator.cancel();
+        super.onDestroy();
+    }
+
+
+    //权限申请
+    private void requestMicrophonePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestPermissions(
+                    new String[]{android.Manifest.permission.RECORD_AUDIO}, REQUEST_RECORD_AUDIO);
+        }
+    }
+
+    private void requestStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestPermissions(
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,Manifest.permission.WRITE_EXTERNAL_STORAGE,Manifest.permission.RECORD_AUDIO}, REQUEST_EXTERNAL_STORAGE);
 //            requestPermissions(
 //                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_EXTERNAL_STORAGE);
-//        }
-//    }
-//
-//    private String assetFilePath(Context context, String assetName) {
-//        File file = new File(context.getFilesDir(), assetName);
-//        if (file.exists() && file.length() > 0) {
-//            return file.getAbsolutePath();
-//        }
-//
-//        try (InputStream is = context.getAssets().open(assetName)) {
-//            try (OutputStream os = new FileOutputStream(file)) {
-//                byte[] buffer = new byte[4 * 1024];
-//                int read;
-//                while ((read = is.read(buffer)) != -1) {
-//                    os.write(buffer, 0, read);
-//                }
-//                os.flush();
-//            }
-//            return file.getAbsolutePath();
-//        } catch (IOException e) {
-//            Log.e(TAG, assetName + ": " + e.getLocalizedMessage());
-//        }
-//        return null;
-//    }
-//
-//    //刷新文件目录，使指定uri文件可见
-//    private void refreshFilelist(File file){
-//        Intent intent =
-//                new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-//        intent.setData(Uri.fromFile(file));
-//        sendBroadcast(intent);
-//    }
-//
-//    private void saveFile(String data,String path,String fileName) throws IOException {
-//
-//
-//        File dir=Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-//        File fullpath=new File(dir,"/myEmovo/log");
-//        if (!fullpath.exists()){
-//            fullpath.mkdirs();
-//        }
-//
-//        File file = new File(fullpath,fileName);
+        }
+    }
+
+    private String assetFilePath(Context context, String assetName) {
+        File file = new File(context.getFilesDir(), assetName);
+        if (file.exists() && file.length() > 0) {
+            return file.getAbsolutePath();
+        }
+
+        try (InputStream is = context.getAssets().open(assetName)) {
+            try (OutputStream os = new FileOutputStream(file)) {
+                byte[] buffer = new byte[4 * 1024];
+                int read;
+                while ((read = is.read(buffer)) != -1) {
+                    os.write(buffer, 0, read);
+                }
+                os.flush();
+            }
+            return file.getAbsolutePath();
+        } catch (IOException e) {
+            Log.e(TAG, assetName + ": " + e.getLocalizedMessage());
+        }
+        return null;
+    }
+
+    //刷新文件目录，使指定uri文件可见
+    private void refreshFilelist(File file){
+        Intent intent =
+                new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+        intent.setData(Uri.fromFile(file));
+        sendBroadcast(intent);
+    }
+
+    private void saveFile(String data,String path,String fileName) throws IOException {
+
+
+        File dir=Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        File fullpath=new File(dir,"/myEmovo/log");
+        if (!fullpath.exists()){
+            fullpath.mkdirs();
+        }
+
+        File file = new File(fullpath,fileName);
+        try {
+            if (!file.exists()){
+                file.createNewFile();
+            }
+        }catch (IOException e){
+            e.printStackTrace();
+        }
+
+        FileOutputStream fos = new FileOutputStream( file);
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(fos));
+        writer.write(data);
+        writer.flush();
+        writer.close();
+        MediaScannerConnection.scanFile(this,
+                new String[] { file.toString() }, null,
+                new MediaScannerConnection.OnScanCompletedListener() {
+                    public void onScanCompleted(String path, Uri uri) {
+                        Log.i("ExternalStorage", "Scanned " + path + ":");
+                        Log.i("ExternalStorage", "-> uri=" + uri);
+                    }
+                });
+
+    }
+
+
+    private void log(float result){
+        String.valueOf(result);
+    }
+
+    private static final int REQUEST_EXTERNAL_STORAGE = 1;
+
+    private static String[] PERMISSIONS_STORAGE = {
+            "android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE" };
+
+
+//    private static void verifyStoragePermissions(Activity activity) {
 //        try {
-//            if (!file.exists()){
-//                file.createNewFile();
+//        //检测是否有写的权限
+//        int permission = ActivityCompat.checkSelfPermission(activity,"android.permission.WRITE_EXTERNAL_STORAGE");
+//            if (permission != PackageManager.PERMISSION_GRANTED) {
+//            // 没有写的权限，去申请写的权限，会弹出对话框
+//            ActivityCompat.requestPermissions(activity, PERMISSIONS_STORAGE,REQUEST_EXTERNAL_STORAGE);
 //            }
-//        }catch (IOException e){
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//            }
+//
+//        }
+
+
+    private void showTranslationResult(String result) {
+        mtvTest.setText(result);
+    }
+    private void changeEmoState(int EmoState){
+        int res;
+        String EmoHint="";
+        if (EmoState==EMO_NEUTRAL) {
+            res = R.drawable.emoji_neutral;
+            EmoHint="I am satisfied!";
+        }
+        else if(EmoState==EMO_ANGER){
+            res=R.drawable.emoji__anger;
+            EmoHint="I am angry!";
+        }
+        else {
+            res=R.drawable.emoji__anger;
+            EmoHint="I am satisfied!";
+        }
+        mImgvEmoState.setImageResource(res);
+        mtvEmoState.setText(EmoHint);
+
+    }
+
+
+
+    private void realtimeRecorder(){
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
+
+        int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT);
+        AudioRecord record = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT,
+                bufferSize);
+
+        if (record.getState() != AudioRecord.STATE_INITIALIZED) {
+            Log.e(LOG_TAG, "Audio Record can't initialize!");
+            throw new IllegalStateException();
+            //return;
+        }
+        record.startRecording();
+
+        long shortsRead = 0;
+        int recordingOffset = 0;
+        float[] audioBuffer = new float[bufferSize / 2];
+        float[] recordingBuffer = new float[RECORDING_LENGTH];
+
+        while (shortsRead < RECORDING_LENGTH/audioBuffer.length*audioBuffer.length) {
+            int numberOfShort = record.read(audioBuffer, 0, audioBuffer.length,AudioRecord.READ_NON_BLOCKING);
+            shortsRead += numberOfShort;
+            System.arraycopy(audioBuffer, 0, recordingBuffer, recordingOffset, numberOfShort);
+            recordingOffset += numberOfShort;
+        }
+
+        record.stop();
+        record.release();
+        stopTimerThread();
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mtvTest.setText("Recognizing...");
+            }
+        });
+
+//        int min = (int) Collections.min(Arrays.asList(recordingBuffer));
+//        int max = (int) Collections.max(Arrays.asList(recordingBuffer));
+//        System.out.println("最小值: " + min);
+//        System.out.println("最大值: " + max);
+
+        //send data to chaquo preprocess module
+        Python py=Python.getInstance();
+        PyObject data=py.getModule("DataPre").callAttr("Preprocess",recordingBuffer);
+        float[] inputfloat =data.toJava(float[].class);
+        //recognize
+        final String result = recognize(inputfloat,(int)562);
+
+        try {
+            saveFile(result,"/logs","log.txt");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                SetProgress(mprobarEmoInference,mprobarEmoInference.getProgress(), (int) (EmoInference*100));
+                showTranslationResult(result);
+                changeEmoState(EmoState);
+                mButton.setEnabled(true);
+                mtvTest.setText("Recording");
+
+            }
+        });
+
+    }
+
+
+    private void toFileRecorder_byAR() throws FileNotFoundException {
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
+
+        int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+        AudioRecord record = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
+                bufferSize);
+
+        if (record.getState() != AudioRecord.STATE_INITIALIZED) {
+            Log.e(LOG_TAG, "Audio Record can't initialize!");
+            throw new IllegalStateException();
+            //return;
+        }
+        record.startRecording();
+
+        long shortsRead = 0;
+        int recordingOffset = 0;
+        short[] audioBuffer = new short[bufferSize / 2];
+        short[] recordingBuffer = new short[RECORDING_LENGTH];
+
+        while (shortsRead < RECORDING_LENGTH/audioBuffer.length*audioBuffer.length) {
+            int numberOfShort = record.read(audioBuffer, 0, audioBuffer.length,AudioRecord.READ_NON_BLOCKING);
+            shortsRead += numberOfShort;
+            System.arraycopy(audioBuffer, 0, recordingBuffer, recordingOffset, numberOfShort);
+            recordingOffset += numberOfShort;
+        }
+
+        record.stop();
+        record.release();
+        stopTimerThread();
+
+        Wave wavFile= new Wave(SAMPLE_RATE, (short) 1,recordingBuffer,0,recordingBuffer.length-1);
+        File fullpath=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "/myEmovo/record");
+        if (!fullpath.exists()){
+            fullpath.mkdirs();
+        }
+        File dir=new File(fullpath,"record.wav");
+        //System.out.println(dir);
+        //File dir=new File("/data/data/org.pytorch.demo.speechrecognition/files/chaquopy/AssetFinder/app","record.wav");
+        if (!dir.exists()){
+            System.out.println("warning:dir not exits!");
+        }
+        wavFile.wroteToFile(dir);
+        FileInputStream ios=new FileInputStream(dir);
+
+//        int min = (int) Collections.min(Arrays.asList(recordingBuffer));
+//        int max = (int) Collections.max(Arrays.asList(recordingBuffer));
+//        System.out.println("最小值: " + min);
+//        System.out.println("最大值: " + max);
+
+        Python py=Python.getInstance();
+        PyObject data=py.getModule("DataPre").callAttr("Preprocess2",ios);
+        float[] inputfloat =data.toJava(float[].class);
+
+        final String result = recognize(inputfloat,(int)562);
+        //save(result,"log.txt");
+        try {
+            saveFile(result,"/logs","log.txt");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                showTranslationResult(result);
+                mButton.setEnabled(true);
+                //mTextView.setText("Start");
+            }
+        });
+
+    }
+
+    //
+    private class MyTimerTask extends TimerTask {
+        private MediaRecorder recorder=null;
+        private File filedir=null;
+        MyTimerTask(MediaRecorder recorder,File filedir){
+            this.recorder=recorder;
+            this.filedir=filedir;
+        }
+        public void run() {
+            recorder.stop();
+            recorder.release();
+
+            Python py=Python.getInstance();
+            PyObject data=py.getModule("DataPre").callAttr("Preprocess2",filedir);
+            float[] inputfloat =data.toJava(float[].class);
+
+
+            final String result = recognize(inputfloat,(int)562);
+            //save(result,"log.txt");
+            try {
+                saveFile(result,"/logs","log.txt");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    showTranslationResult(result);
+                    mButton.setEnabled(true);
+                    mtvTest.setText("Start");
+                }
+            });
+
+
+
+        }
+    }
+    //先将录音存为音频，再用librosa直接读取
+    private void toFileRecorder_byMR(){
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
+        final MediaRecorder recorder = new MediaRecorder();
+        //ContentValues values = new ContentValues(3);
+        //values.put(MediaStore.MediaColumns.TITLE, fileName);
+        recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+        //recorder.setMaxDuration(AUDIO_LEN_IN_SECOND);
+        File fullpath=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "/myEmovo/record");
+        if (!fullpath.exists()){
+            fullpath.mkdirs();
+        }
+
+        File dir=new File(fullpath,"record.m4a");
+        recorder.setOutputFile(dir);
+        try {
+            recorder.prepare();
+        } catch (Exception e){
+            e.printStackTrace();
+            while (true){
+                System.out.println("prepare wrong!");
+            }
+
+        }
+        recorder.start();
+
+        Timer timer = new Timer();
+        timer.schedule(new MyTimerTask(recorder,dir), 2000, 5000);
+    }
+
+    public void run() {
+        //toFileRecorder_byMR();
+        //realtimeRecorder();
+//        try {
+//            toFileRecorder_byAR();
+//        } catch (FileNotFoundException e) {
 //            e.printStackTrace();
 //        }
-//
-//        FileOutputStream fos = new FileOutputStream( file);
-//        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(fos));
-//        writer.write(data);
-//        writer.flush();
-//        writer.close();
-//        MediaScannerConnection.scanFile(this,
-//                new String[] { file.toString() }, null,
-//                new MediaScannerConnection.OnScanCompletedListener() {
-//                    public void onScanCompleted(String path, Uri uri) {
-//                        Log.i("ExternalStorage", "Scanned " + path + ":");
-//                        Log.i("ExternalStorage", "-> uri=" + uri);
-//                    }
-//                });
-//
-//    }
-//    private void log(float result){
-//        String.valueOf(result);
-//    }
-//
-//    private static final int REQUEST_EXTERNAL_STORAGE = 1;
-//
-//    private static String[] PERMISSIONS_STORAGE = {
-//            "android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE" };
-//
-//
-////    private static void verifyStoragePermissions(Activity activity) {
-////        try {
-////        //检测是否有写的权限
-////        int permission = ActivityCompat.checkSelfPermission(activity,"android.permission.WRITE_EXTERNAL_STORAGE");
-////            if (permission != PackageManager.PERMISSION_GRANTED) {
-////            // 没有写的权限，去申请写的权限，会弹出对话框
-////            ActivityCompat.requestPermissions(activity, PERMISSIONS_STORAGE,REQUEST_EXTERNAL_STORAGE);
-////            }
-////        } catch (Exception e) {
-////            e.printStackTrace();
-////            }
-////
-////        }
-//
-//
-//    private void showTranslationResult(String result) {
-//        mtvTest.setText(result);
-//    }
-//    private void changeEmoState(int EmoState){
-//        int res;
-//        String EmoHint="";
-//        if (EmoState==EMO_NEUTRAL) {
-//            res = R.drawable.emoji_neutral;
-//            EmoHint="I am satisfied!";
-//        }
-//        else if(EmoState==EMO_ANGER){
-//            res=R.drawable.emoji__anger;
-//            EmoHint="I am angry!";
-//        }
-//        else {
-//            res=R.drawable.emoji__anger;
-//            EmoHint="I am satisfied!";
-//        }
-//        mImgvEmoState.setImageResource(res);
-//        mtvEmoState.setText(EmoHint);
-//
-//    }
-//
-//
-//
-//    private void realtimeRecorder(){
-//        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
-//
-//        int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT);
-//        AudioRecord record = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT,
-//                bufferSize);
-//
-//        if (record.getState() != AudioRecord.STATE_INITIALIZED) {
-//            Log.e(LOG_TAG, "Audio Record can't initialize!");
-//            throw new IllegalStateException();
-//            //return;
-//        }
-//        record.startRecording();
-//
-//        long shortsRead = 0;
-//        int recordingOffset = 0;
-//        float[] audioBuffer = new float[bufferSize / 2];
-//        float[] recordingBuffer = new float[RECORDING_LENGTH];
-//
-//        while (shortsRead < RECORDING_LENGTH/audioBuffer.length*audioBuffer.length) {
-//            int numberOfShort = record.read(audioBuffer, 0, audioBuffer.length,AudioRecord.READ_NON_BLOCKING);
-//            shortsRead += numberOfShort;
-//            System.arraycopy(audioBuffer, 0, recordingBuffer, recordingOffset, numberOfShort);
-//            recordingOffset += numberOfShort;
-//        }
-//
-//        record.stop();
-//        record.release();
-//        stopTimerThread();
-//
-//        runOnUiThread(new Runnable() {
-//            @Override
-//            public void run() {
-//                mtvTest.setText("Recognizing...");
-//            }
-//        });
-//
-////        int min = (int) Collections.min(Arrays.asList(recordingBuffer));
-////        int max = (int) Collections.max(Arrays.asList(recordingBuffer));
-////        System.out.println("最小值: " + min);
-////        System.out.println("最大值: " + max);
-//
-//        //send data to chaquo preprocess module
-//        Python py=Python.getInstance();
-//        PyObject data=py.getModule("DataPre").callAttr("Preprocess",recordingBuffer);
-//        float[] inputfloat =data.toJava(float[].class);
-//        //recognize
-//        final String result = recognize(inputfloat,(int)562);
-//
-//        try {
-//            saveFile(result,"/logs","log.txt");
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//
-//        runOnUiThread(new Runnable() {
-//            @Override
-//            public void run() {
-//                SetProgress(mprobarEmoInference,mprobarEmoInference.getProgress(), (int) (EmoInference*100));
-//                showTranslationResult(result);
-//                changeEmoState(EmoState);
-//                mButton.setEnabled(true);
-//                mtvTest.setText("Recording");
-//
-//            }
-//        });
-//
-//    }
-//
-//
-//    private void toFileRecorder_byAR() throws FileNotFoundException {
-//        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
-//
-//        int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-//        AudioRecord record = new AudioRecord(MediaRecorder.AudioSource.DEFAULT, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
-//                bufferSize);
-//
-//        if (record.getState() != AudioRecord.STATE_INITIALIZED) {
-//            Log.e(LOG_TAG, "Audio Record can't initialize!");
-//            throw new IllegalStateException();
-//            //return;
-//        }
-//        record.startRecording();
-//
-//        long shortsRead = 0;
-//        int recordingOffset = 0;
-//        short[] audioBuffer = new short[bufferSize / 2];
-//        short[] recordingBuffer = new short[RECORDING_LENGTH];
-//
-//        while (shortsRead < RECORDING_LENGTH/audioBuffer.length*audioBuffer.length) {
-//            int numberOfShort = record.read(audioBuffer, 0, audioBuffer.length,AudioRecord.READ_NON_BLOCKING);
-//            shortsRead += numberOfShort;
-//            System.arraycopy(audioBuffer, 0, recordingBuffer, recordingOffset, numberOfShort);
-//            recordingOffset += numberOfShort;
-//        }
-//
-//        record.stop();
-//        record.release();
-//        stopTimerThread();
-//
-//        Wave wavFile= new Wave(SAMPLE_RATE, (short) 1,recordingBuffer,0,recordingBuffer.length-1);
-//        File fullpath=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-//                "/myEmovo/record");
-//        if (!fullpath.exists()){
-//            fullpath.mkdirs();
-//        }
-//        File dir=new File(fullpath,"record.wav");
-//        //System.out.println(dir);
-//        //File dir=new File("/data/data/org.pytorch.demo.speechrecognition/files/chaquopy/AssetFinder/app","record.wav");
-//        if (!dir.exists()){
-//            System.out.println("warning:dir not exits!");
-//        }
-//        wavFile.wroteToFile(dir);
-//        FileInputStream ios=new FileInputStream(dir);
-//
-////        int min = (int) Collections.min(Arrays.asList(recordingBuffer));
-////        int max = (int) Collections.max(Arrays.asList(recordingBuffer));
-////        System.out.println("最小值: " + min);
-////        System.out.println("最大值: " + max);
-//
-//        Python py=Python.getInstance();
-//        PyObject data=py.getModule("DataPre").callAttr("Preprocess2",ios);
-//        float[] inputfloat =data.toJava(float[].class);
-//
-//        final String result = recognize(inputfloat,(int)562);
-//        //save(result,"log.txt");
-//        try {
-//            saveFile(result,"/logs","log.txt");
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//
-//        runOnUiThread(new Runnable() {
-//            @Override
-//            public void run() {
-//                showTranslationResult(result);
-//                mButton.setEnabled(true);
-//                //mTextView.setText("Start");
-//            }
-//        });
-//
-//    }
-//
-//    //
-//    private class MyTimerTask extends TimerTask {
-//        private MediaRecorder recorder=null;
-//        private File filedir=null;
-//        MyTimerTask(MediaRecorder recorder,File filedir){
-//            this.recorder=recorder;
-//            this.filedir=filedir;
-//        }
-//        public void run() {
-//            recorder.stop();
-//            recorder.release();
-//
-//            Python py=Python.getInstance();
-//            PyObject data=py.getModule("DataPre").callAttr("Preprocess2",filedir);
-//            float[] inputfloat =data.toJava(float[].class);
-//
-//
-//            final String result = recognize(inputfloat,(int)562);
-//            //save(result,"log.txt");
-//            try {
-//                saveFile(result,"/logs","log.txt");
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//
-//            runOnUiThread(new Runnable() {
-//                @Override
-//                public void run() {
-//                    showTranslationResult(result);
-//                    mButton.setEnabled(true);
-//                    mtvTest.setText("Start");
-//                }
-//            });
-//
-//
-//
-//        }
-//    }
-//    //先将录音存为音频，再用librosa直接读取
-//    private void toFileRecorder_byMR(){
-//        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
-//        final MediaRecorder recorder = new MediaRecorder();
-//        //ContentValues values = new ContentValues(3);
-//        //values.put(MediaStore.MediaColumns.TITLE, fileName);
-//        recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-//        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-//        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-//        //recorder.setMaxDuration(AUDIO_LEN_IN_SECOND);
-//        File fullpath=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-//                "/myEmovo/record");
-//        if (!fullpath.exists()){
-//            fullpath.mkdirs();
-//        }
-//
-//        File dir=new File(fullpath,"record.m4a");
-//        recorder.setOutputFile(dir);
-//        try {
-//            recorder.prepare();
-//        } catch (Exception e){
-//            e.printStackTrace();
-//            while (true){
-//                System.out.println("prepare wrong!");
-//            }
-//
-//        }
-//        recorder.start();
-//
-//        Timer timer = new Timer();
-//        timer.schedule(new MyTimerTask(recorder,dir), 2000, 5000);
-//    }
-//
-//    public void run() {
-//        //toFileRecorder_byMR();
-//        //realtimeRecorder();
-////        try {
-////            toFileRecorder_byAR();
-////        } catch (FileNotFoundException e) {
-////            e.printStackTrace();
-////        }
-//
-//    }
-//
-//    private String recognize(float[] floatInputBuffer,int shape0) {
-//        if (mModuleEncoder == null) {
-//
-//            mModuleEncoder = LiteModuleLoader.load(assetFilePath(getApplicationContext(), "Model2.ptl"));
-//        }
-//        int Length=floatInputBuffer.length;
-//        double wav2vecinput[] = new double[Length];
-//        for (int n = 0; n < Length; n++)
-//            wav2vecinput[n] = floatInputBuffer[n];
-//
-//        FloatBuffer inTensorBuffer = Tensor.allocateFloatBuffer(Length);
-//        for (double val : wav2vecinput)
-//            inTensorBuffer.put((float)val);
-//
-//        Tensor inTensor = Tensor.fromBlob(inTensorBuffer, new long[]{(int)Length/shape0,(int)Length/shape0, shape0});
-//        Tensor ResultTensor=mModuleEncoder.forward(IValue.from(inTensor)).toTensor();
-//        float[] ResultFloat=ResultTensor.getDataAsFloatArray();
-//        float result =ResultFloat[0]/(ResultFloat[0]+ResultFloat[1]);
-//        this.EmoInference=result;
-//        if (result<0.5){
-//            this.EmoState=EMO_NEUTRAL;
-//        }
-//        else if (result>0.5){
-//            this.EmoState=EMO_ANGER;
-//        }
-//
-//
-//        return String.valueOf(result);
-//    }
-//
-//    public void SetProgress(final ProgressBar view, int startprogress, int endprogress) {//进度条的控件，以及起始的值
-//
-//        view.setVisibility(View.VISIBLE);
-//
-//
-//        ValueAnimator animator = ValueAnimator.ofInt(startprogress, endprogress).setDuration(800);
-//
-//        animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-//            @Override
-//            public void onAnimationUpdate(ValueAnimator valueAnimator) {
-//                view.setProgress((int) valueAnimator.getAnimatedValue());
-//            }
-//        });
-//        animator.start();
-//    }
+
+    }
+
+    private String recognize(float[] floatInputBuffer,int shape0) {
+        if (mModuleEncoder == null) {
+
+            mModuleEncoder = LiteModuleLoader.load(assetFilePath(getApplicationContext(), "Model2.ptl"));
+        }
+        int Length=floatInputBuffer.length;
+        double wav2vecinput[] = new double[Length];
+        for (int n = 0; n < Length; n++)
+            wav2vecinput[n] = floatInputBuffer[n];
+
+        FloatBuffer inTensorBuffer = Tensor.allocateFloatBuffer(Length);
+        for (double val : wav2vecinput)
+            inTensorBuffer.put((float)val);
+
+        Tensor inTensor = Tensor.fromBlob(inTensorBuffer, new long[]{(int)Length/shape0,(int)Length/shape0, shape0});
+        Tensor ResultTensor=mModuleEncoder.forward(IValue.from(inTensor)).toTensor();
+        float[] ResultFloat=ResultTensor.getDataAsFloatArray();
+        float result =ResultFloat[0]/(ResultFloat[0]+ResultFloat[1]);
+        this.EmoInference=result;
+        if (result<0.5){
+            this.EmoState=EMO_NEUTRAL;
+        }
+        else if (result>0.5){
+            this.EmoState=EMO_ANGER;
+        }
+
+
+        return String.valueOf(result);
+    }
+
+    public void SetProgress(final ProgressBar view, int startprogress, int endprogress) {//进度条的控件，以及起始的值
+
+        view.setVisibility(View.VISIBLE);
+
+
+        ValueAnimator animator = ValueAnimator.ofInt(startprogress, endprogress).setDuration(800);
+
+        animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator valueAnimator) {
+                view.setProgress((int) valueAnimator.getAnimatedValue());
+            }
+        });
+        animator.start();
+    }
 
 
 

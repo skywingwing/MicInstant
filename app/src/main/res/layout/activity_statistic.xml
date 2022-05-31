@@ -63,5 +63,13 @@
         app:layout_constraintTop_toTopOf="@+id/imgbtnMainMenu"
         app:srcCompat="@drawable/icon_utilitymenu_nonactive" />
 
+    <CheckBox
+        android:id="@+id/cbTest"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="cbTest"
+        tools:layout_editor_absoluteX="127dp"
+        tools:layout_editor_absoluteY="499dp" />
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
